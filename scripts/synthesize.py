@@ -31,7 +31,15 @@ def emit(**values):
 
 
 def config(name):
-    return json.loads((ROOT / 'references' / name).read_text(encoding='utf-8-sig'))
+    payload = json.loads((ROOT / 'references' / name).read_text(encoding='utf-8-sig'))
+    if name == 'index_tts.json' and not (payload.get('base_url') and payload.get('token')):
+        fallback = Path.home() / '.lstest' / 'tts.json'
+        if fallback.is_file():
+            local = json.loads(fallback.read_text(encoding='utf-8-sig'))
+            for key in ('base_url', 'token', 'request_timeout'):
+                if local.get(key) and not payload.get(key):
+                    payload[key] = local[key]
+    return payload
 
 
 DEFAULT_VOICES = {'male': ('付小春',), 'female': ('小宁',), 'both': ('付小春', '小宁')}

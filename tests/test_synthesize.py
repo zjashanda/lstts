@@ -93,7 +93,7 @@ class SkillTests(unittest.TestCase):
         book.close()
         bucket = MagicMock()
         bucket.get_object.return_value.read.return_value = buffer.getvalue()
-        with patch('oss2.Bucket', return_value=bucket):
+        with patch('oss2.Bucket', return_value=bucket), patch.object(s, 'config', return_value={'access_key_id': 'k', 'access_key_secret': 's', 'endpoint': 'e', 'bucket': 'b', 'prefix': 'p', 'metadata_file': 'm.xlsx'}):
             records, _ = s.cloud_records([{'name': '付小春'}, {'name': '小宁'}])
             self.assertEqual([r['label'] for r in records], ['m1.wav', 'f1.wav'])
             with self.assertRaisesRegex(ValueError, '无法唯一定位'):
@@ -168,7 +168,7 @@ class SkillTests(unittest.TestCase):
         book.close()
         bucket = MagicMock()
         bucket.get_object.return_value.read.return_value = buffer.getvalue()
-        with patch('oss2.Bucket', return_value=bucket):
+        with patch('oss2.Bucket', return_value=bucket), patch.object(s, 'config', return_value={'access_key_id': 'k', 'access_key_secret': 's', 'endpoint': 'e', 'bucket': 'b', 'prefix': 'p', 'metadata_file': 'm.xlsx'}):
             records, _ = s.cloud_records([{'count': 1}])
             self.assertEqual(records[0]['label'], 'm.wav')
             records, _ = s.cloud_records([{'count': 1, 'gender': 'female'}, {'count': 1, 'age': 'elder'}])

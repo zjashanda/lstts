@@ -5,7 +5,7 @@ description: 'Use ONLY when the user requests IndexTTS/indexTTS 语音合成、�
 
 # IndexTTS 语音合成
 
-此 skill 完全独立。所有脚本和配置以本 SKILL.md 所在目录为根。不得导入、修改或依赖原桌面工具代码。配置由脚本读取 references/index_tts.json 和 references/oss.json，不要将凭据输出到对话；仓库内的这两个文件是空模板，使用前必须填入 base_url/token 与 OSS 凭据。
+此 skill 完全独立。所有脚本和配置以本 SKILL.md 所在目录为根。不得导入、修改或依赖原桌面工具代码。配置由脚本读取 references/index_tts.json 和 references/oss.json，不要将凭据输出到对话；仓库内的这两个文件是空模板，使用前必须填入 base_url/token 与 OSS 凭据。index_tts.json 为空时会自动回退读取 `~/.lstest/tts.json`（字段同名），便于在本机复用已配置的凭据而无需把密钥写入仓库。
 
 ## 进程与窗口约束（强制）
 
