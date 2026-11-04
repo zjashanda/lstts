@@ -7,6 +7,13 @@ description: 'Use ONLY when the user requests IndexTTS/indexTTS 语音合成、�
 
 此 skill 完全独立。所有脚本和配置以本 SKILL.md 所在目录为根。不得导入、修改或依赖原桌面工具代码。配置由脚本读取 references/index_tts.json 和 references/oss.json，不要将凭据输出到对话；仓库内的这两个文件是空模板，使用前必须填入 base_url/token 与 OSS 凭据。
 
+## 进程与窗口约束（强制）
+
+- 禁止在 skill 内部使用 `Win32_Process.Create` 启动 `cmd.exe` 或 `powershell.exe`：该方式会分配可见控制台窗口，必须在桌面不可见。
+- 所有子进程必须通过 .NET `ProcessStartInfo` 启动，并同时满足 `UseShellExecute = $false`、`CreateNoWindow = $true`、`WindowStyle = Hidden`；Python 进程也可直接使用 `pythonw.exe`。
+- 必须把子进程 stdout/stderr 重定向到日志文件，不得依赖可见控制台输出。
+- 无法保证不产生窗口时，必须停止该操作并说明阻塞原因，不得先执行再观察是否弹窗。
+
 ## 收集输入
 
 先从用户消息提取已知参数，仅询问缺失或有歧义的信息：
