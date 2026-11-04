@@ -9,10 +9,12 @@ description: 'Use ONLY when the user requests IndexTTS/indexTTS 语音合成、�
 
 ## 进程与窗口约束（强制）
 
-- 禁止在 skill 内部使用 `Win32_Process.Create` 启动 `cmd.exe` 或 `powershell.exe`：该方式会分配可见控制台窗口，必须在桌面不可见。
-- 所有子进程必须通过 .NET `ProcessStartInfo` 启动，并同时满足 `UseShellExecute = $false`、`CreateNoWindow = $true`、`WindowStyle = Hidden`；Python 进程也可直接使用 `pythonw.exe`。
-- 必须把子进程 stdout/stderr 重定向到日志文件，不得依赖可见控制台输出。
-- 无法保证不产生窗口时，必须停止该操作并说明阻塞原因，不得先执行再观察是否弹窗。
+- 本 skill 及其脚本、生成模板中，任何启动终端的调用（`cmd`、`powershell`、`pwsh`、`wt`、`conhost`、`Start-Process`、`subprocess`、`os.system`、`Popen`、脚本包装器等）都必须在后台执行，禁止在桌面出现任何控制台窗口。
+- 统一使用 .NET `ProcessStartInfo`：`UseShellExecute = $false`、`CreateNoWindow = $true`、`WindowStyle = Hidden`；Python 子进程优先使用 `pythonw.exe`。
+- 子进程 stdout/stderr 必须重定向到日志文件，不得依赖可见控制台输出。
+- 禁止用 `Win32_Process.Create` 创建 `cmd.exe` 或 `powershell.exe`，该方式会分配可见控制台窗口。
+- 不能只写“后台运行”：后台进程同样可能拥有可见控制台窗口，必须显式抑制窗口。
+- 无法保证不弹窗时，必须停止执行并说明阻塞原因，不得先运行再观察。
 
 ## 收集输入
 
