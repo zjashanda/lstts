@@ -220,6 +220,10 @@ def texts_from(job):
 
 def audio_file(value):
     path = Path(value).resolve()
+    if not path.is_file():
+        bundled = ROOT / 'voices' / (str(value) + '.wav')
+        if bundled.is_file():
+            path = bundled.resolve()
     if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
         raise ValueError(f'不是支持的音频文件：{path}')
     return path

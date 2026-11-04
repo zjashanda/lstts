@@ -115,6 +115,11 @@ class SkillTests(unittest.TestCase):
             task = next((root / 'out').iterdir())
             self.assertEqual([p.name for p in task.iterdir() if p.is_dir()], ['0001_付小春'])
 
+    def test_bundled_voice_name(self):
+        path = s.audio_file('付小春')
+        self.assertTrue(path.is_file())
+        self.assertEqual(path.name, '付小春.wav')
+
     def test_directory_recursive_natural_order(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
