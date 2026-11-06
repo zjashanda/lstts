@@ -67,6 +67,29 @@ API 保持安静：不打印、不解析 CLI、不 `sys.exit`。`openpyxl`、`xl
 pip install "lstts-core @ git+https://github.com/zjashanda/lstts.git@main"
 ```
 
+## 被其他 Skill 复用与更新
+
+其他 Skill 通过 Git 安装：
+
+```powershell
+pip install "lstts-core @ git+https://github.com/zjashanda/lstts.git@main"
+```
+
+更新时只需更新本仓库，然后在消费方 venv 中执行：
+
+```powershell
+pip install -U --force-reinstall --no-cache-dir "lstts-core @ git+https://github.com/zjashanda/lstts.git@main"
+```
+
+- 不需要修改消费方 Skill 代码。
+- 多个 Skill 共用 venv 时执行一次即可。
+- 固定版本时把 `@main` 换成对应 tag，例如 `@v1.0.0`。
+- 检查版本：
+
+```powershell
+python -c "import lstts_core; print(lstts_core.__version__)"
+```
+
 ## 配置与环境变量
 
 配置位置和完整优先级见 [references/environment.md](references/environment.md)。主环境变量如下：
