@@ -96,11 +96,12 @@ python -c "import lstts_core; print(lstts_core.__version__)"
 
 | 变量 | 用途 |
 |---|---|
+| `LSTTS_TTS_URL` | IndexTTS 服务地址（优先级最高，配置文件兜底） |
 | `LSTTS_TTS_TOKEN` | IndexTTS token |
 | `ACCESS_KEY_ID` | OSS AccessKey ID |
 | `ACCESS_KEY_SECRET` | OSS AccessKey Secret |
 
-`LSTEST_TTS_TOKEN` 作为旧 token 变量继续接受，但优先级低于 `LSTTS_TTS_TOKEN`。OSS key 是环境变量优先于配置文件。URL、endpoint、bucket、prefix、请求超时、metadata 文件名和路径写在配置文件中，不新增对应环境变量。历史 `LSTEST_TTS_URL`、`LSTEST_TTS_TIMEOUT`、`LSTEST_TTS_CONFIG`、`LSTEST_VOICE_DIR` 仍可读取以兼容旧调用，但不作为主配置方式。
+服务地址优先级：`LSTTS_TTS_URL` > `LSTEST_TTS_URL`（旧名）> `LSTEST_TTS_CONFIG` 指向的文件 > `~/.lstest/tts.json` > `references/index_tts.json`。新机器只设置 `LSTTS_TTS_URL` 即可合成，不必手写配置文件；配置文件仍是兜底。token 优先级：`LSTTS_TTS_TOKEN` > `LSTEST_TTS_TOKEN` > 配置文件 `token`。OSS key 是环境变量优先于配置文件。请求超时、OSS endpoint、bucket、prefix、metadata 文件名和路径写在配置文件中。缺少服务地址时，CLI 与 API 都会报出"设置哪个变量、改哪个文件"的指引，而不是裸 `KeyError`。
 
 ## 输入与声音
 
