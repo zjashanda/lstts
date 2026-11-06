@@ -1,19 +1,34 @@
 # lstts
 
-'Use ONLY when the user requests IndexTTS/indexTTS 语音合成、音色克隆、情感参考合成，或使用云端音色库合成语音。支持直接文本、TXT/XLSX/XLS、本地音色文件或目录、阿里云 OSS 音色筛选下载，输出 WAV 与 XLSX。'
+Use ONLY when the user requests IndexTTS/indexTTS 语音合成、音色克隆、情感参考合成，或使用云端音色库合成语音。支持独立 CLI 与 lstts-core Python API。
 
 ## Skill layout
 
+- `pyproject.toml`
+- `references/environment.md`
 - `references/index_tts.json`
 - `references/input-format.md`
 - `references/oss.json`
 - `requirements.txt`
+- `scripts/lstts_core/__init__.py`
+- `scripts/lstts_core/audio.py`
+- `scripts/lstts_core/client.py`
+- `scripts/lstts_core/config.py`
+- `scripts/lstts_core/legacy.py`
+- `scripts/lstts_core/report.py`
+- `scripts/lstts_core/text.py`
+- `scripts/lstts_core/voices/付小春.wav`
+- `scripts/lstts_core/voices/小宁.wav`
+- `scripts/lstts_core/voices.py`
+- `scripts/lstts_core.egg-info/dependency_links.txt`
+- `scripts/lstts_core.egg-info/PKG-INFO`
+- `scripts/lstts_core.egg-info/requires.txt`
+- `scripts/lstts_core.egg-info/SOURCES.txt`
+- `scripts/lstts_core.egg-info/top_level.txt`
 - `scripts/run-hidden.ps1`
 - `scripts/synthesize.py`
 - `SKILL.md`
 - `tests/test_synthesize.py`
-- `voices/付小春.wav`
-- `voices/小宁.wav`
 
 ## Install the skill
 
@@ -21,55 +36,56 @@ Copy this folder into:
 
 ```text
 ~/.codex/skills/lstts
+~/.config/opencode/skills/lstts
 ```
 
-Then restart Codex.
+Then restart Codex or OpenCode.
 
 ## Usage and workflow
 
-此 skill 完全独立。所有脚本和配置以本 SKILL.md 所在目录为根。不得导入、修改或依赖原桌面工具代码。配置由脚本读取 references/index_tts.json 和 references/oss.json，不要将凭据输出到对话；仓库内的这两个文件是空模板，使用前必须填入 base_url/token 与 OSS 凭据。index_tts.json 为空时会自动回退读取 `~/.lstest/tts.json`（字段同名），便于在本机复用已配置的凭据而无需把密钥写入仓库。
+本 Skill 保留独立 CLI，同时提供可 pip 安装的 `lstts-core` 包。TTS 的 HTTP、配置、音频校验和声音资源以 `lstts_core` 为单一来源；`scripts/synthesize.py` 只是 CLI 包装层。
 
-## 进程与窗口约束（强制）
+## 独立使用
 
-- 本 skill 及其脚本、生成模板中，任何启动终端的调用（`cmd`、`powershell`、`pwsh`、`wt`、`conhost`、`Start-Process`、`subprocess`、`os.system`、`Popen`、脚本包装器等）都必须在后台执行，禁止在桌面出现任何控制台窗口。
-- 统一使用 .NET `ProcessStartInfo`：`UseShellExecute = $false`、`CreateNoWindow = $true`、`WindowStyle = Hidden`；Python 子进程优先使用 `pythonw.exe`。
-- 子进程 stdout/stderr 必须重定向到日志文件，不得依赖可见控制台输出。
-- 禁止用 `Win32_Process.Create` 创建 `cmd.exe` 或 `powershell.exe`，该方式会分配可见控制台窗口。
-- 不能只写“后台运行”：后台进程同样可能拥有可见控制台窗口，必须显式抑制窗口。
-- 无法保证不弹窗时，必须停止执行并说明阻塞原因，不得先运行再观察。
+```powershell
+python scripts\synthesize.py --job <job.json> --preview
+python scripts\synthesize.py --job <job.json>
+```
 
-## 收集输入
+保持原有 `--job` JSON 合同和 JSONL 事件流：`preview`、`progress`、`item_result`、`complete`。退出码：0 成功，1 任务级错误，2 部分/全部音频失败，130 中止。Windows 运行仍使用 `scripts/run-hidden.ps1`，避免桌面弹出终端。
 
-先从用户消息提取已知参数，仅询问缺失或有歧义的信息：
-- 文本：直接文字，或 TXT/XLSX/XLS 本地路径。
-- 音色：本地音频文件、本地目录（递归使用全部音频，不要求信息表），或云端音色库。也可直接写内置音色名 `付小春` / `小宁`，会解析到 `<skill>/voices/<姓名>.wav`。
-- 默认音色（用户没有点名音色时，必须遵守，不得再从信息表头部按顺序挑选）：用户说男/女/男女（或男声、女声）→ 男声用“付小春”、女声用“小宁”；只要求合成、未提性别 → 只用“付小春”。用户点名音色时按姓名精确匹配；姓名重复或不存在必须让用户澄清，不得自动改选。
-- 云端数量必须明确；未指定性别默认男性，未指定年龄默认成人，未指定省份不限。成人 18–55 岁，老人 56 岁及以上。数量按记录计，不按姓名去重。按信息表顺序选择，不随机。
-- “男1人”是男成人1条，“女2人”是女成人2条，“2人”是男成人2条，“老人2人”是男老人2条。“男女各2人”是两组；“男女共3人”需询问配比。“不限性别/年龄”映射 all，不能被默认值覆盖。
-- 情感可选，仅接受一个本地音频文件（上传的文件需可访问的本地路径）。无情感文件默认 clone；文字情感要求提示提供音频，不推断情感参数，不接受情感目录。
-- 输出默认当前工作目录/index_tts_output，允许用户指定路径。
+## Python API
 
-询问文本时必须说明：“每行一条，行内顿号（、）和中英文分号（；;）也会拆成独立文本；不按逗号或其他标点拆分。”此规则对直接文字、TXT、Excel 文本单元格都适用。保留用户文本，不改写、不识别角色。Excel 第一个工作表必须有“文本”列；非空“合成数量”不支持（含文本为空的行），提示用户调整，不忽略。例外：单条文本估算超过 max_text_tokens（默认 70）时，按句读标点自动切成多段分别合成，避免单段音频过长导致内容错乱；`max_text_tokens` 设为 0 可关闭该保护。TXT 依次按 UTF-8、GB18030、UTF-16 尝试读取。
+```python
+from lstts_core import inspect_wav, load_config, resolve_voice, synthesize_batch, synthesize_one
 
-## 执行
+config = load_config()
+voice = resolve_voice("付小春")
+result = synthesize_one("你好，世界", "output/hello.wav", voice=voice, config=config)
+```
 
-1. 使用 Python 3.10+。必要时在 skill 目录创建 .venv 并安装 requirements.txt，后续使用该解释器；不要把依赖安装到原工具目录。
-2. 构造任务 JSON（仅任务参数，无凭据）放入本 skill 的 runtime/ 下，使用唯一名称。路径使用绝对路径，JSON 编码 UTF-8。格式参见 references/input-format.md。
-3. 使用绝对脚本路径执行，Windows 下必须走隐藏启动器，禁止直接弹控制台窗口：先写一个命令脚本，内容为 `<skill>/.venv/Scripts/python.exe <skill>/scripts/synthesize.py --job <任务JSON> --preview`，再运行 `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/run-hidden.ps1 -CommandFile <命令脚本> -WaitSeconds <超时秒数> -Label <标签>`。启动器使用 CreateNoWindow，不产生可见窗口，日志与退出码写入 `<skill>/runtime/logs/<jobId>/`（stdout.log、stderr.log、exit.txt、meta.json）。返回 `status=running` 表示已转入后台，用 meta.json 的 pid 跟踪，日志按需读取。非 Windows 平台直接运行 python 命令即可。本地预览不创建输出；云端预览只获取信息表，检查数量，不下载音频。预览输出含 segmented_texts（被自动切分的原始条数）、validate_audio、long_references（参考音频超过 15 秒、会被服务端截断的音色）。
-4. 展示拆分后文本数量、选中音色数量、默认条件、情感模式、预计 WAV 数和输出目录。例如“共10条文本，男-成人2条，预计20个音频”。若 segmented_texts 大于 0 需说明有原始条被自动切段；long_references 非空需提示参考音频将被截断且不会上传裁剪后的文件。无需额外审批；预览失败时先解决问题。人数不足必须提示实际可用数量，不自动缩减。
-5. 运行同一命令脚本，去掉 `--preview`，仍通过 run-hidden.ps1 启动并适当提高 WaitSeconds。执行时会重新校验云端可用数量。脚本 stdout 为 JSON 事件流，写入日志文件，仅用于当前调用，不保存 JSON/TXT 结果清单。避免短于单次请求超时的执行时间；批量任务可适当提高执行超时。
-6. 根据最终结果汇报成功/失败数、疑似异常音频数、任务目录和 XLSX 路径。退出码 2 为部分/全部项目失败，退出码 1 为任务级错误，130 为中止；不能将非零退出码描述为全部成功。疑似异常（削波、疑似过长）不计入失败，但必须一并汇报。
-7. 使用完删除本次 runtime 任务 JSON（其中含用户文本），不删除用户输入、下载音色或已生成音频。
+API 保持安静：不打印、不解析 CLI、不 `sys.exit`。`openpyxl`、`xlrd`、`oss2` 仅在相关功能执行时导入。
 
-## 执行语义
+## 安装
 
-- 每条文本 × 每个音色；每次 HTTP 请求只提交一条文本和一个音色，串行处理，预期返回一个 WAV。同一情感参考作用于全部音色。没有角色分配或逐行数量功能。
-- 音色来源三选一：`speaker`（本地）、`cloud`（云端筛选）、都不写（默认音色）。都不写时按 `gender` 取默认音色：`male`（默认）→付小春，`female`→小宁，`both`→付小春+小宁；该映射固定在脚本 DEFAULT_VOICES 中，不得临时改动。`cloud` 每项支持 `{"name": "付小春"}` 按姓名精确选择，匹配数不等于 1 时报错，不会退化成按顺序取第一条。
-- 支持 WAV/MP3/FLAC/M4A/OGG。目录递归扫描、自然排序、跳过符号链接。
-- 云端下载失败和单音色合成失败继续后续任务，并记入 XLSX。下载不足必须报告实际数量。
-- 结果仅 WAV、下载的参考音频与合成结果.xlsx；不生成 JSON/TXT 结果清单。临时请求文件自动清理。XLSX 每 25 条落盘一次并在结束时补写，前 13 列顺序固定，末尾追加“音频时长(秒)”“峰值(dBFS)”“校验结论”。目录名规则：云端音色用信息表“姓名”（同名追加 _2/_3），本地音色用文件名，均带四位序号前缀。
-- 音频校验默认开启（`validate_audio: false` 可关闭）：WAV 无法解析、短于 0.05 秒、全静音判为“合成失败”；削波比例超过 2% 或长于 90 秒记为“疑似”，状态仍为成功但需在汇报中列出。`long_references` 中的参考音频超过 15 秒会被服务端静默截断，预览阶段只提示、不裁剪。
-- 中止立即生效：收到中断后不再提交后续请求，也不再补写剩余条目的“已中止”行；报告在 finally 中补写一次。
-- 隐藏启动器运行在无控制台环境，收不到 Ctrl+C。后台中止用 `Stop-Process -Id <meta.json 中的 pid>`，此时以最后一次落盘（每 25 条）和 finally 已写内容为准；需要完整收尾时避免中途强杀。
-- request_timeout 单位为秒，默认 10 秒，是单条请求总时限。超时主动 shutdown/close 底层连接，记录当前条超时，继续下一条，不自动重试。用户中止时断开当前请求并停止后续提交。服务端应配合断连终止推理；本地断连本身不是服务端取消确认。
-- 每次 ZIP 必须包含一个 WAV，以当前原始文本序号命名；失败不影响前后已生成音频。汇总 successful_audio/failed_or_stopped_audio 按音频条数计。
+```powershell
+pip install "lstts-core @ git+https://github.com/zjashanda/lstts.git@main"
+```
+
+## 配置与环境变量
+
+配置位置和完整优先级见 [references/environment.md](references/environment.md)。主环境变量如下：
+
+| 变量 | 用途 |
+|---|---|
+| `LSTTS_TTS_TOKEN` | IndexTTS token |
+| `ACCESS_KEY_ID` | OSS AccessKey ID |
+| `ACCESS_KEY_SECRET` | OSS AccessKey Secret |
+
+`LSTEST_TTS_TOKEN` 作为旧 token 变量继续接受，但优先级低于 `LSTTS_TTS_TOKEN`。OSS key 是环境变量优先于配置文件。URL、endpoint、bucket、prefix、请求超时、metadata 文件名和路径写在配置文件中，不新增对应环境变量。历史 `LSTEST_TTS_URL`、`LSTEST_TTS_TIMEOUT`、`LSTEST_TTS_CONFIG`、`LSTEST_VOICE_DIR` 仍可读取以兼容旧调用，但不作为主配置方式。
+
+## 输入与声音
+
+支持直接文本、TXT/XLSX/XLS、本地声音文件或目录、OSS 云端声音筛选和单个情感参考音频。内置声音为 `付小春`、`小宁`，资源位于 `scripts/lstts_core/voices/`，通过 `importlib.resources` 解析，源码树和 wheel 安装均可用。
+
+不要把 token、AccessKey 写入任务 JSON、日志、报告或对话。

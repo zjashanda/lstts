@@ -6,12 +6,21 @@ import threading
 import time
 import sys
 import tempfile
+import types
 import unittest
 import wave
 import zipfile
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+try:
+    import oss2
+except ImportError:
+    oss2 = types.ModuleType("oss2")
+    oss2.Auth = lambda *args, **kwargs: object()
+    oss2.Bucket = lambda *args, **kwargs: None
+    sys.modules["oss2"] = oss2
 
 from openpyxl import Workbook, load_workbook
 
@@ -43,6 +52,39 @@ def wav_payload(seconds=1.0, rate=16000, value=3000):
 
 
 class SkillTests(unittest.TestCase):
+    def test_core_package_api_and_voice_resource(self):
+        scripts = Path(__file__).resolve().parents[1] / 'scripts'
+        sys.path.insert(0, str(scripts))
+        import lstts_core
+        from lstts_core.voices import resolve_voice
+        self.assertEqual(lstts_core.__version__, '1.0.0')
+        self.assertTrue(resolve_voice('付小春').is_file())
+        sys.path.remove(str(scripts))
+
+    def test_token_precedence(self):
+        with patch.dict('os.environ', {'LSTTS_TTS_TOKEN': 'new', 'LSTEST_TTS_TOKEN': 'old'}, clear=False), patch.object(s.Path, 'home', return_value=Path(tempfile.mkdtemp())):
+            with patch.object(s, 'config', return_value={'base_url': 'https://example.test', 'token': 'config'}):
+                import lstts_core
+                with patch('lstts_core.config._skill_root', return_value=Path(tempfile.mkdtemp())):
+                    self.assertEqual(lstts_core.load_config()['token'], 'new')
+
+    def test_oss_environment_precedence(self):
+        import lstts_core
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {'ACCESS_KEY_ID': 'env-id', 'ACCESS_KEY_SECRET': 'env-secret'}, clear=False):
+            config = Path(directory) / 'oss.json'
+            config.write_text('{"access_key_id":"file-id","access_key_secret":"file-secret"}', encoding='utf-8')
+            value = lstts_core.load_config('oss.json', config)
+            self.assertEqual(value['access_key_id'], 'env-id')
+            self.assertEqual(value['access_key_secret'], 'env-secret')
+
+    def test_standalone_cli_preview_and_complete(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            job = Path(directory) / 'job.json'
+            job.write_text(json.dumps({'text': '你好', 'speaker': str(Path(__file__).resolve().parents[1] / 'scripts' / 'lstts_core' / 'voices' / '付小春.wav')}), encoding='utf-8')
+            preview = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'scripts' / 'synthesize.py'), '--job', str(job), '--preview'], capture_output=True, text=True, check=False)
+            self.assertEqual(preview.returncode, 0)
+            self.assertIn('"event": "preview"', preview.stdout)
     def test_split_and_excel_quantity(self):
         self.assertEqual(s.texts_from({'text': '你好，朋友、再见；下次;角色A：你好。\n尾句'})[0], ['你好，朋友', '再见', '下次', '角色A：你好。', '尾句'])
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lstts-core"
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = [
+  "openpyxl>=3.1,<4",
+  "xlrd>=2,<3",
+  "oss2>=2.18,<3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+
+[tool.setuptools.packages.find]
+where = ["scripts"]
+include = ["lstts_core*"]
+
+[tool.setuptools.package-data]
+lstts_core = ["voices/*.wav"]
+
+[tool.setuptools.dynamic]
+version = {attr = "lstts_core.__version__"}
