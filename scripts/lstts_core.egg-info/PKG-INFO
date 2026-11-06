@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: lstts-core
-Version: 1.0.0
-Requires-Python: >=3.10
-Requires-Dist: openpyxl<4,>=3.1
-Requires-Dist: xlrd<3,>=2
-Requires-Dist: oss2<3,>=2.18
