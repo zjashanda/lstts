@@ -1,6 +1,6 @@
 """可复用的 IndexTTS 合成核心 API。"""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from .audio import inspect_wav
 from .config import load_config

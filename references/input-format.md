@@ -56,6 +56,6 @@ gender: male/female/all，缺省 male；age: adult/elder/all，缺省 adult。co
 
 TXT 依次按 UTF-8（允许 BOM）、GB18030、UTF-16 读取，不能有制表符。XLSX/XLS 读取首个工作表，以第一行为表头，必须包含“文本”；“合成数量”列可存在但任何行（含文本为空的行）都不得填写数量。所有来源统一按换行、顿号、中英文分号拆分，忽略空片段，不按其他标点拆分；仅当单条估算超过 max_text_tokens 时，才按句读标点二次切分。
 
-配置位于 references：index_tts.json 使用 base_url/token/request_timeout；oss.json 使用 access_key_id/access_key_secret/endpoint/bucket/prefix/metadata_file。脚本不输出这些值。
+配置位于 references：index_tts.json 使用 base_url/token/request_timeout；oss.json 使用 access_key_id/access_key_secret/endpoint/bucket/prefix/metadata_file。脚本不输出这些值。其中 base_url 也可由环境变量 `LSTTS_TTS_URL`（旧名 `LSTEST_TTS_URL`）提供，优先级高于配置文件。
 
 输出为 output/时间戳_任务名/，音频按音色分目录；云端参考保存在该任务的“参考音频”目录；合成结果.xlsx 记录每条文本的成功、超时、失败、下载失败、音频校验失败或中止。没有音频的行路径为空。前 13 列为固定字段，末尾追加“音频时长(秒)”“峰值(dBFS)”“校验结论”。每次请求仅一条文本，串行执行。request_timeout 默认 10，单位秒；超时主动断连后继续下一条；中断时立即停止提交并在 finally 补写一次报告，不再补写剩余条目。

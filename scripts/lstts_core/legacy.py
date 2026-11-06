@@ -22,6 +22,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse, urlsplit
 from urllib.request import Request, urlopen
 
+from .config import base_url_hint as _base_url_hint, env_base_url as _env_base_url, env_token as _env_token
+
 ROOT = Path(__file__).resolve().parents[2]
 EXTENSIONS = {'.wav', '.mp3', '.flac', '.m4a', '.ogg'}
 
@@ -32,13 +34,20 @@ def emit(**values):
 
 def config(name):
     payload = json.loads((ROOT / 'references' / name).read_text(encoding='utf-8-sig'))
-    if name == 'index_tts.json' and not (payload.get('base_url') and payload.get('token')):
-        fallback = Path.home() / '.lstest' / 'tts.json'
-        if fallback.is_file():
-            local = json.loads(fallback.read_text(encoding='utf-8-sig'))
-            for key in ('base_url', 'token', 'request_timeout'):
-                if local.get(key) and not payload.get(key):
-                    payload[key] = local[key]
+    if name == 'index_tts.json':
+        if not (payload.get('base_url') and payload.get('token')):
+            fallback = Path.home() / '.lstest' / 'tts.json'
+            if fallback.is_file():
+                local = json.loads(fallback.read_text(encoding='utf-8-sig'))
+                for key in ('base_url', 'token', 'request_timeout'):
+                    if local.get(key) and not payload.get(key):
+                        payload[key] = local[key]
+        url = _env_base_url()
+        if url:
+            payload['base_url'] = url
+        token = _env_token()
+        if token:
+            payload['token'] = token
     return payload
 
 
@@ -343,6 +352,9 @@ def cloud_records(selections):
 
 
 def request_audio(cfg, speaker, emotion, text_path):
+    base_url = str(cfg.get('base_url') or '').strip()
+    if not base_url:
+        raise ValueError(_base_url_hint())
     deadline = time.monotonic() + cfg['request_timeout']
     boundary = '----IndexTTS' + uuid.uuid4().hex
     fields = [('spk_audio_prompt', speaker), ('text', text_path)]
@@ -355,9 +367,9 @@ def request_audio(cfg, speaker, emotion, text_path):
         chunks.extend([header.encode('utf-8'), path.read_bytes(), b'\r\n'])
     chunks.append(f'--{boundary}--\r\n'.encode())
     body = b''.join(chunks)
-    url = urlsplit(cfg['base_url'].rstrip('/') + ('/v1/emotion' if emotion else '/v1/clone'))
+    url = urlsplit(base_url.rstrip('/') + ('/v1/emotion' if emotion else '/v1/clone'))
     if url.scheme not in ('http', 'https') or not url.hostname:
-        raise ValueError('无效的服务地址。')
+        raise ValueError('无效的服务地址：请检查 LSTTS_TTS_URL 或配置文件 base_url 是否为 http(s) 地址。')
     results = queue.Queue(maxsize=1)
     lock = threading.Lock()
     sockets = []
@@ -496,8 +508,13 @@ def run(job, preview=False):
         job = dict(job, cloud=default_cloud(job))
     emotion = audio_file(job['emotion']) if job.get('emotion') else None
     cfg = config('index_tts.json')
-    if not str(cfg.get('base_url', '')).startswith(('http://', 'https://')) or not cfg.get('token'):
-        raise ValueError('合成服务配置缺少有效 base_url/token。')
+    base_url = str(cfg.get('base_url') or '').strip()
+    if not base_url:
+        raise ValueError(_base_url_hint())
+    if not base_url.startswith(('http://', 'https://')):
+        raise ValueError('IndexTTS 服务地址必须以 http:// 或 https:// 开头：请检查 LSTTS_TTS_URL 或配置文件 base_url。')
+    if not cfg.get('token'):
+        raise ValueError('缺少 IndexTTS token：请设置环境变量 LSTTS_TTS_TOKEN（兼容旧名 LSTEST_TTS_TOKEN），或在配置文件中写入 token。')
     timeout = cfg.get('request_timeout', 10)
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError('request_timeout 必须为正数。')

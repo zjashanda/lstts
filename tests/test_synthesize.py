@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import os
+import shutil
 import socket
 import struct
 import threading
@@ -28,6 +30,8 @@ SPEC = importlib.util.spec_from_file_location('synthesize', Path(__file__).resol
 s = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(s)
 
+import lstts_core
+
 
 def archive_payload(entries):
     data = BytesIO()
@@ -52,12 +56,18 @@ def wav_payload(seconds=1.0, rate=16000, value=3000):
 
 
 class SkillTests(unittest.TestCase):
+    def setUp(self):
+        # 服务地址与 token 走环境变量，CLI/run 测试不再依赖本机 ~/.lstest/tts.json。
+        env = patch.dict('os.environ', {'LSTTS_TTS_URL': 'https://tts.example.test', 'LSTTS_TTS_TOKEN': 'test-token'}, clear=False)
+        env.start()
+        self.addCleanup(env.stop)
+
     def test_core_package_api_and_voice_resource(self):
         scripts = Path(__file__).resolve().parents[1] / 'scripts'
         sys.path.insert(0, str(scripts))
         import lstts_core
         from lstts_core.voices import resolve_voice
-        self.assertEqual(lstts_core.__version__, '1.0.0')
+        self.assertEqual(lstts_core.__version__, '1.1.0')
         self.assertTrue(resolve_voice('付小春').is_file())
         sys.path.remove(str(scripts))
 
@@ -369,6 +379,69 @@ class SkillTests(unittest.TestCase):
                     s.request_audio(cfg, audio, None, text)
             sock.shutdown.assert_called_with(socket.SHUT_RDWR)
             self.assertTrue(sock.close.called)
+
+
+class ConfigEnvironmentTests(unittest.TestCase):
+    """base_url 环境变量入口：LSTTS_TTS_URL > LSTEST_TTS_URL > 配置文件。"""
+
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+        self.skill_root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.skill_root, ignore_errors=True)
+        env = patch.dict('os.environ', {
+            'LSTTS_TTS_URL': '', 'LSTEST_TTS_URL': '', 'LSTEST_TTS_CONFIG': '',
+            'LSTTS_TTS_TOKEN': '', 'LSTEST_TTS_TOKEN': '',
+        }, clear=False)
+        env.start()
+        self.addCleanup(env.stop)
+        home = patch.object(Path, 'home', return_value=self.home)
+        home.start()
+        self.addCleanup(home.stop)
+        root = patch('lstts_core.config._skill_root', return_value=self.skill_root)
+        root.start()
+        self.addCleanup(root.stop)
+
+    def write_config(self, relative, payload):
+        path = self.home / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding='utf-8')
+        return path
+
+    def test_base_url_from_environment_only(self):
+        with patch.dict('os.environ', {'LSTTS_TTS_URL': 'https://env.example/v1'}, clear=False):
+            self.assertEqual(lstts_core.load_config()['base_url'], 'https://env.example/v1')
+
+    def test_environment_url_overrides_legacy_name_and_files(self):
+        explicit = self.write_config('explicit.json', {'base_url': 'https://config.example', 'token': 'cfg-token'})
+        with patch.dict('os.environ', {'LSTEST_TTS_CONFIG': str(explicit)}, clear=False):
+            self.assertEqual(lstts_core.load_config()['base_url'], 'https://config.example')
+            with patch.dict('os.environ', {'LSTEST_TTS_URL': 'https://legacy.example'}, clear=False):
+                self.assertEqual(lstts_core.load_config()['base_url'], 'https://legacy.example')
+                with patch.dict('os.environ', {'LSTTS_TTS_URL': 'https://new.example'}, clear=False):
+                    self.assertEqual(lstts_core.load_config()['base_url'], 'https://new.example')
+
+    def test_user_config_fallback_still_works(self):
+        self.write_config('.lstest/tts.json', {'base_url': 'https://user-file.example', 'token': 't'})
+        self.assertEqual(lstts_core.load_config()['base_url'], 'https://user-file.example')
+
+    def test_blank_environment_value_is_ignored(self):
+        with patch.dict('os.environ', {'LSTTS_TTS_URL': '   '}, clear=False):
+            self.assertNotIn('base_url', lstts_core.load_config())
+
+    def test_cli_config_layer_also_reads_environment(self):
+        with patch.dict('os.environ', {'LSTTS_TTS_URL': 'https://cli.example', 'LSTTS_TTS_TOKEN': 'cli-token'}, clear=False):
+            config = s.config('index_tts.json')
+        self.assertEqual(config['base_url'], 'https://cli.example')
+        self.assertEqual(config['token'], 'cli-token')
+
+    def test_missing_base_url_error_is_actionable(self):
+        with self.assertRaises(ValueError) as caught:
+            lstts_core.synthesize_one('你好', self.home / 'out.wav')
+        message = str(caught.exception)
+        self.assertIn('LSTTS_TTS_URL', message)
+        self.assertIn('base_url', message)
+        self.assertIn(str(self.home / '.lstest' / 'tts.json'), message)
 
 
 if __name__ == '__main__':
